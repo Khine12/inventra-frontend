@@ -43,7 +43,6 @@ interface DailyData {
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [products, setProducts] = useState<Product[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [todayTransactions, setTodayTransactions] = useState<Transaction[]>([])
   const [analytics, setAnalytics] = useState<{ daily: DailyData[], summary: AnalyticsSummary } | null>(null)
   const navigate = useNavigate()
@@ -53,7 +52,6 @@ export default function Dashboard() {
     API.get('/products/').then(res => setProducts(res.data))
     API.get('/transactions/').then(res => {
         const all = res.data
-        setTransactions(all)
         const today = new Date().toLocaleDateString()
         setTodayTransactions(all.filter((t: Transaction) =>
             new Date(t.created_at).toLocaleDateString() === today
@@ -69,9 +67,6 @@ export default function Dashboard() {
     quantity: p.quantity,
     threshold: p.low_stock_threshold
   }))
-
-  const recentTransactions = todayTransactions.slice(0, 5)
-
   return (
     <div style={styles.container}>
       <div style={styles.sidebar}>
@@ -192,10 +187,10 @@ export default function Dashboard() {
         {/* Recent Transactions */}
         <div style={styles.recentCard}>
           <h2 style={styles.cardTitle}>Today's Transactions</h2>
-          {recentTransactions.length === 0 ? (
+          {todayTransactions.length === 0 ? (
             <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '1rem' }}>No transactions yet</p>
           ) : (
-            recentTransactions.map(t => (
+            todayTransactions.map(t => (
               <div key={t.id} style={styles.txRow}>
                 <div style={styles.txLeft}>
                   <span style={{
