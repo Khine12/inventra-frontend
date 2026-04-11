@@ -15,6 +15,7 @@ interface Product {
   id: number
   name: string
   price: number
+  cost_price: number
 }
 
 export default function Transactions() {
@@ -145,7 +146,7 @@ export default function Transactions() {
           <table style={styles.table}>
             <thead>
               <tr>
-                {['Product', 'Type', 'Quantity', 'Revenue', 'Note', 'Date'].map(h => (
+                {['Product', 'Type', 'Quantity', 'Revenue', 'Profit', 'Note', 'Date'].map(h => (
                   <th key={h} style={styles.th}>{h}</th>
                 ))}
               </tr>
@@ -169,6 +170,13 @@ export default function Transactions() {
                       {revenue !== null
                         ? <span style={{ color: '#16a34a', fontWeight: 500 }}>${revenue.toFixed(2)}</span>
                         : <span style={{ color: '#94a3b8' }}>—</span>}
+                    </td>
+                    <td style={styles.td}>
+                        {(() => {
+                            if (t.type !== 'sale' || !p) return <span style={{ color: '#94a3b8' }}>-</span>
+                            const profit = (p.price - (p.cost_price || 0)) * t.quantity
+                            return <span style={{ color: profit >= 0 ? '#16a34a' : '#ef4444', fontWeight: 500 }}>${profit.toFixed(2)}</span>
+                        })()}
                     </td>
                     <td style={styles.td}>{t.note || <span style={{ color: '#94a3b8' }}>—</span>}</td>
                     <td style={styles.td}>{new Date(t.created_at).toLocaleDateString()}</td>

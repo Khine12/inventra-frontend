@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import API from '../api'
 import { useNavigate, Link } from 'react-router-dom'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from 'recharts'
 
 interface DashboardData {
   total_products: number
@@ -25,27 +25,52 @@ interface Transaction {
   created_at: string
 }
 
+interface AnalyticsSummary {
+  total_revenue: number
+  total_cost: number
+  total_profit: number
+  profit_margin: number
+}
+
+interface DailyData {
+  date: string
+  revenue: number
+  cost: number
+  profit: number
+  sales: number
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [todayTransactions, setTodayTransactions] = useState<Transaction[]>([])
+  const [analytics, setAnalytics] = useState<{ daily: DailyData[], summary: AnalyticsSummary } | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     API.get('/alerts/dashboard').then(res => setData(res.data)).catch(() => navigate('/login'))
     API.get('/products/').then(res => setProducts(res.data))
-    API.get('/transactions/').then(res => setTransactions(res.data))
+    API.get('/transactions/').then(res => {
+        const all = res.data
+        setTransactions(all)
+        const today = new Date().toLocaleDateString()
+        setTodayTransactions(all.filter((t: Transaction) =>
+            new Date(t.created_at).toLocaleDateString() === today
+        ))
+    })
+    API.get('/alerts/analytics/revenue').then(res => setAnalytics(res.data))
   }, [])
 
   const logout = () => { localStorage.removeItem('token'); navigate('/login') }
 
-  const chartData = products.slice(0, 6).map(p => ({
+  const stockChartData = products.slice(0, 6).map(p => ({
     name: p.name.length > 10 ? p.name.slice(0, 10) + '...' : p.name,
     quantity: p.quantity,
     threshold: p.low_stock_threshold
   }))
 
-  const recentTransactions = transactions.slice(0, 5)
+  const recentTransactions = todayTransactions.slice(0, 5)
 
   return (
     <div style={styles.container}>
@@ -76,6 +101,7 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Top stat cards */}
         <div style={styles.statsGrid}>
           <div style={{ ...styles.statCard, borderTop: '4px solid #16a34a' }}>
             <p style={styles.statLabel}>Total Products</p>
@@ -93,56 +119,99 @@ export default function Dashboard() {
             <p style={styles.statHint}>Within 7 days</p>
           </div>
           <div style={{ ...styles.statCard, borderTop: '4px solid #6366f1' }}>
-            <p style={styles.statLabel}>Recent Transactions</p>
-            <p style={{ ...styles.statValue, color: '#6366f1' }}>{transactions.length}</p>
-            <p style={styles.statHint}>Total recorded</p>
+            <p style={styles.statLabel}>Today's Transactions</p>
+            <p style={{ ...styles.statValue, color: '#6366f1' }}>{todayTransactions.length}</p>
+            <p style={styles.statHint}>Recorded today</p>
           </div>
         </div>
 
-        <div style={styles.row}>
+        {/* Revenue summary cards */}
+        {analytics && (
+          <div style={styles.revenueGrid}>
+            <div style={styles.revenueCard}>
+              <p style={styles.statLabel}>Total Revenue</p>
+              <p style={{ ...styles.statValue, color: '#16a34a' }}>${analytics.summary.total_revenue.toFixed(2)}</p>
+              <p style={styles.statHint}>From all sales</p>
+            </div>
+            <div style={styles.revenueCard}>
+              <p style={styles.statLabel}>Total Cost</p>
+              <p style={{ ...styles.statValue, color: '#ef4444' }}>${analytics.summary.total_cost.toFixed(2)}</p>
+              <p style={styles.statHint}>Cost of goods sold</p>
+            </div>
+            <div style={styles.revenueCard}>
+              <p style={styles.statLabel}>Total Profit</p>
+              <p style={{ ...styles.statValue, color: analytics.summary.total_profit >= 0 ? '#16a34a' : '#ef4444' }}>
+                ${analytics.summary.total_profit.toFixed(2)}
+              </p>
+              <p style={styles.statHint}>Revenue minus cost</p>
+            </div>
+            <div style={styles.revenueCard}>
+              <p style={styles.statLabel}>Profit Margin</p>
+              <p style={{ ...styles.statValue, color: '#6366f1' }}>{analytics.summary.profit_margin}%</p>
+              <p style={styles.statHint}>Overall margin</p>
+            </div>
+          </div>
+        )}
+
+        {/* Charts row */}
+        <div style={styles.chartsRow}>
+          {/* Revenue & Profit Line Chart */}
+          {analytics && (
+            <div style={styles.chartCard}>
+              <h2 style={styles.cardTitle}>Revenue & Profit Over Time</h2>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={analytics.daily} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value) => `$${Number(value).toFixed(2)}`} />
+                  <Legend />
+                  <Line type="monotone" dataKey="revenue" stroke="#16a34a" strokeWidth={2} dot={false} name="Revenue" />
+                  <Line type="monotone" dataKey="profit" stroke="#6366f1" strokeWidth={2} dot={false} name="Profit" />
+                  <Line type="monotone" dataKey="cost" stroke="#ef4444" strokeWidth={2} dot={false} name="Cost" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Stock Level Bar Chart */}
           <div style={styles.chartCard}>
             <h2 style={styles.cardTitle}>Stock Levels</h2>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar dataKey="quantity" radius={[4, 4, 0, 0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell
-                      key={index}
-                      fill={entry.quantity <= entry.threshold ? '#ef4444' : '#16a34a'}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
+                <BarChart data={stockChartData} barSize={40} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Bar dataKey="quantity" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                </BarChart>
             </ResponsiveContainer>
             <p style={styles.chartHint}>🟢 Sufficient &nbsp; 🔴 Low stock</p>
           </div>
+        </div>
 
-          <div style={styles.recentCard}>
-            <h2 style={styles.cardTitle}>Recent Transactions</h2>
-            {recentTransactions.length === 0 ? (
-              <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '1rem' }}>No transactions yet</p>
-            ) : (
-              recentTransactions.map(t => (
-                <div key={t.id} style={styles.txRow}>
-                  <div style={styles.txLeft}>
-                    <span style={{
-                      ...styles.badge,
-                      background: t.type === 'sale' ? '#fee2e2' : '#dcfce7',
-                      color: t.type === 'sale' ? '#ef4444' : '#16a34a'
-                    }}>{t.type}</span>
-                    <span style={styles.txDetail}>Product #{t.product_id}</span>
-                  </div>
-                  <div style={styles.txRight}>
-                    <span style={styles.txQty}>×{t.quantity}</span>
-                    <span style={styles.txDate}>{new Date(t.created_at).toLocaleDateString()}</span>
-                  </div>
+        {/* Recent Transactions */}
+        <div style={styles.recentCard}>
+          <h2 style={styles.cardTitle}>Today's Transactions</h2>
+          {recentTransactions.length === 0 ? (
+            <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '1rem' }}>No transactions yet</p>
+          ) : (
+            recentTransactions.map(t => (
+              <div key={t.id} style={styles.txRow}>
+                <div style={styles.txLeft}>
+                  <span style={{
+                    ...styles.badge,
+                    background: t.type === 'sale' ? '#fee2e2' : '#dcfce7',
+                    color: t.type === 'sale' ? '#ef4444' : '#16a34a'
+                  }}>{t.type}</span>
+                  <span style={styles.txDetail}>Product #{t.product_id}</span>
                 </div>
-              ))
-            )}
-          </div>
+                <div style={styles.txRight}>
+                  <span style={styles.txQty}>×{t.quantity}</span>
+                  <span style={styles.txDate}>{new Date(t.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -163,12 +232,14 @@ const styles: Record<string, React.CSSProperties> = {
   header: { marginBottom: '1.5rem' },
   heading: { fontSize: '24px', fontWeight: 700, color: '#1e293b' },
   subheading: { fontSize: '14px', color: '#64748b', marginTop: '4px' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' },
+  revenueGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' },
   statCard: { background: '#fff', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
+  revenueCard: { background: '#fff', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', borderTop: '4px solid #16a34a' },
   statLabel: { fontSize: '13px', color: '#64748b', marginBottom: '8px', fontWeight: 500 },
-  statValue: { fontSize: '32px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' },
+  statValue: { fontSize: '28px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' },
   statHint: { fontSize: '12px', color: '#94a3b8' },
-  row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
+  chartsRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' },
   chartCard: { background: '#fff', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
   recentCard: { background: '#fff', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
   cardTitle: { fontSize: '15px', fontWeight: 600, color: '#1e293b', marginBottom: '1rem' },

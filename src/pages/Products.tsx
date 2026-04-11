@@ -7,6 +7,7 @@ interface Product {
   name: string
   sku: string
   quantity: number
+  costPrice: number
   price: number
   low_stock_threshold: number
   expiry_date: string | null
@@ -17,6 +18,7 @@ export default function Products() {
   const [name, setName] = useState('')
   const [sku, setSku] = useState('')
   const [quantity, setQuantity] = useState('')
+  const [costPrice, setCostPrice] = useState('')
   const [price, setPrice] = useState('')
   const [threshold, setThreshold] = useState('10')
   const [expiryDate, setExpiryDate] = useState('')
@@ -37,10 +39,11 @@ export default function Products() {
         name, sku,
         quantity: parseInt(quantity),
         price: parseFloat(price),
+        cost_price: parseFloat(costPrice) || 0,
         low_stock_threshold: parseInt(threshold),
         expiry_date: expiryDate || null
       })
-      setName(''); setSku(''); setQuantity(''); setPrice(''); setThreshold('10'); setExpiryDate('')
+      setName(''); setSku(''); setQuantity(''); setPrice(''); setCostPrice(''); setThreshold('10'); setExpiryDate('')
       setShowForm(false)
       load()
     } catch {
@@ -94,7 +97,7 @@ export default function Products() {
                 <input style={styles.input} placeholder="e.g. Apple Juice" value={name} onChange={e => setName(e.target.value)} />
               </div>
               <div style={styles.formGroup}>
-                <label style={styles.label}>SKU</label>
+                <label style={styles.label}>SKU (unique product code)</label>
                 <input style={styles.input} placeholder="e.g. AJ-001" value={sku} onChange={e => setSku(e.target.value)} />
               </div>
               <div style={styles.formGroup}>
@@ -102,7 +105,11 @@ export default function Products() {
                 <input style={styles.input} placeholder="0" type="number" value={quantity} onChange={e => setQuantity(e.target.value)} />
               </div>
               <div style={styles.formGroup}>
-                <label style={styles.label}>Price ($)</label>
+                <label style={styles.label}>Cost Price ($) - what you paid</label>
+                <input style={styles.input} placeholder="0.00" type="number" value={costPrice} onChange={e => setCostPrice(e.target.value)} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Selling Price ($) - what you charge</label>
                 <input style={styles.input} placeholder="0.00" type="number" value={price} onChange={e => setPrice(e.target.value)} />
               </div>
               <div style={styles.formGroup}>
