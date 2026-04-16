@@ -44,6 +44,9 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [todayTransactions, setTodayTransactions] = useState<Transaction[]>([])
+  const [chartView, setChartView] = useState<'daily' | 'monthly'>('daily')
+  const [chartFrom, setChartFrom] = useState('')
+  const [chartTo, setChartTo] = useState('')
   const [analytics, setAnalytics] = useState<{ daily: DailyData[], summary: AnalyticsSummary } | null>(null)
   const navigate = useNavigate()
 
@@ -67,6 +70,44 @@ export default function Dashboard() {
     quantity: p.quantity,
     threshold: p.low_stock_threshold
   }))
+
+  const chartData = (() => {
+  if (!analytics) return []
+  let data = analytics.daily
+
+  // Apply date filter
+  if (chartFrom) data = data.filter(d => d.date >= chartFrom)
+  if (chartTo) data = data.filter(d => d.date <= chartTo)
+
+  // Group by month if monthly view
+  if (chartView === 'monthly') {
+    const grouped: Record<string, { date: string, revenue: number, cost: number, profit: number }> = {}
+    data.forEach(d => {
+      const month = d.date.slice(0, 7) // "2026-04"
+      if (!grouped[month]) grouped[month] = { date: month, revenue: 0, cost: 0, profit: 0 }
+      grouped[month].revenue += d.revenue
+      grouped[month].cost += d.cost
+      grouped[month].profit += d.profit
+    })
+    return Object.values(grouped)
+  }
+  return data
+  })()
+
+  const monthlyBreakdown = (() => {
+  if (!analytics) return []
+  const grouped: Record<string, { month: string, revenue: number, cost: number, profit: number }> = {}
+  analytics.daily.forEach(d => {
+    const month = d.date.slice(0, 7).replace(/\//g, '-')
+    const label = new Date(month + '-15').toLocaleString('default', { month: 'long', year: 'numeric' })
+    if (!grouped[month]) grouped[month] = { month: label, revenue: 0, cost: 0, profit: 0 }
+    grouped[month].revenue += d.revenue
+    grouped[month].cost += d.cost
+    grouped[month].profit += d.profit
+  })
+  return Object.values(grouped).reverse()
+})()
+
   return (
     <div style={styles.container}>
       <div style={styles.sidebar}>
@@ -123,51 +164,106 @@ export default function Dashboard() {
         {/* Revenue summary cards */}
         {analytics && (
           <div style={styles.revenueGrid}>
-            <div style={styles.revenueCard}>
-              <p style={styles.statLabel}>Total Revenue</p>
-              <p style={{ ...styles.statValue, color: '#16a34a' }}>${analytics.summary.total_revenue.toFixed(2)}</p>
-              <p style={styles.statHint}>From all sales</p>
+  <div style={{ ...styles.revenueCard, borderTop: '4px solid #16a34a' }}>
+    <p style={styles.statLabel}>Total Revenue</p>
+    <p style={{ ...styles.statValue, color: '#16a34a' }}>${analytics.summary.total_revenue.toFixed(2)}</p>
+    <p style={styles.statHint}>From all sales</p>
+  </div>
+  <div style={{ ...styles.revenueCard, borderTop: '4px solid #ef4444' }}>
+    <p style={styles.statLabel}>Total Cost</p>
+    <p style={{ ...styles.statValue, color: '#ef4444' }}>${analytics.summary.total_cost.toFixed(2)}</p>
+    <p style={styles.statHint}>Cost of goods sold</p>
+  </div>
+  <div style={{ ...styles.revenueCard, borderTop: '4px solid #16a34a' }}>
+    <p style={styles.statLabel}>Total Profit</p>
+    <p style={{ ...styles.statValue, color: analytics.summary.total_profit >= 0 ? '#16a34a' : '#ef4444' }}>
+      ${analytics.summary.total_profit.toFixed(2)}
+    </p>
+    <p style={styles.statHint}>Revenue minus cost</p>
+  </div>
+  <div style={{ ...styles.revenueCard }}>
+    <p style={styles.statLabel}>Profit Margin</p>
+    <p style={{ ...styles.statValue, color: '#6366f1' }}>{analytics.summary.profit_margin}%</p>
+    <p style={styles.statHint}>Overall margin</p>
+  </div>
+</div>
+        )}
+
+        {monthlyBreakdown.length > 0 && (
+  <div style={{ marginBottom: '1rem' }}>
+    <h2 style={{ ...styles.cardTitle, marginBottom: '0.75rem' }}>Monthly Breakdown</h2>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+      {monthlyBreakdown.map(m => (
+        <div key={m.month} style={{ ...styles.revenueCard, borderTop: '4px solid #6366f1' }}>
+          <p style={{ ...styles.statLabel, color: '#6366f1', fontWeight: 600 }}>{m.month}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+            <div>
+              <p style={{ fontSize: '11px', color: '#94a3b8' }}>Revenue</p>
+              <p style={{ fontSize: '16px', fontWeight: 700, color: '#16a34a' }}>${m.revenue.toFixed(2)}</p>
             </div>
-            <div style={styles.revenueCard}>
-              <p style={styles.statLabel}>Total Cost</p>
-              <p style={{ ...styles.statValue, color: '#ef4444' }}>${analytics.summary.total_cost.toFixed(2)}</p>
-              <p style={styles.statHint}>Cost of goods sold</p>
+            <div>
+              <p style={{ fontSize: '11px', color: '#94a3b8' }}>Cost</p>
+              <p style={{ fontSize: '16px', fontWeight: 700, color: '#ef4444' }}>${m.cost.toFixed(2)}</p>
             </div>
-            <div style={styles.revenueCard}>
-              <p style={styles.statLabel}>Total Profit</p>
-              <p style={{ ...styles.statValue, color: analytics.summary.total_profit >= 0 ? '#16a34a' : '#ef4444' }}>
-                ${analytics.summary.total_profit.toFixed(2)}
-              </p>
-              <p style={styles.statHint}>Revenue minus cost</p>
-            </div>
-            <div style={styles.revenueCard}>
-              <p style={styles.statLabel}>Profit Margin</p>
-              <p style={{ ...styles.statValue, color: '#6366f1' }}>{analytics.summary.profit_margin}%</p>
-              <p style={styles.statHint}>Overall margin</p>
+            <div>
+              <p style={{ fontSize: '11px', color: '#94a3b8' }}>Profit</p>
+              <p style={{ fontSize: '16px', fontWeight: 700, color: m.profit >= 0 ? '#16a34a' : '#ef4444' }}>${m.profit.toFixed(2)}</p>
             </div>
           </div>
-        )}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
         {/* Charts row */}
         <div style={styles.chartsRow}>
           {/* Revenue & Profit Line Chart */}
           {analytics && (
             <div style={styles.chartCard}>
-              <h2 style={styles.cardTitle}>Revenue & Profit Over Time</h2>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={analytics.daily} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value) => `$${Number(value).toFixed(2)}`} />
-                  <Legend />
-                  <Line type="monotone" dataKey="revenue" stroke="#16a34a" strokeWidth={2} dot={false} name="Revenue" />
-                  <Line type="monotone" dataKey="profit" stroke="#6366f1" strokeWidth={2} dot={false} name="Profit" />
-                  <Line type="monotone" dataKey="cost" stroke="#ef4444" strokeWidth={2} dot={false} name="Cost" />
-                </LineChart>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h2 style={{ ...styles.cardTitle, marginBottom: 0 }}>Revenue & Profit Over Time</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Daily/Monthly toggle */}
+              <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                {(['daily', 'monthly'] as const).map(v => (
+                  <button key={v} onClick={() => setChartView(v)} style={{
+                    padding: '5px 14px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none',
+                    background: chartView === v ? '#16a34a' : '#fff',
+                    color: chartView === v ? '#fff' : '#64748b'
+                }}>
+                   {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+            ))}
+        </div>
+        {/* Date range */}
+        <input type="date" value={chartFrom} onChange={e => setChartFrom(e.target.value)}
+          style={{ padding: '5px 8px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
+        <span style={{ fontSize: '12px', color: '#94a3b8' }}>to</span>
+        <input type="date" value={chartTo} onChange={e => setChartTo(e.target.value)}
+          style={{ padding: '5px 8px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
+        {(chartFrom || chartTo) && (
+          <button onClick={() => { setChartFrom(''); setChartTo('') }}
+            style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#fff', cursor: 'pointer', color: '#64748b' }}>
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+    <ResponsiveContainer width="100%" height={220}>
+      <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} />
+        <Tooltip formatter={(value) => `$${Number(value).toFixed(2)}`} />
+        <Legend />
+        <Line type="monotone" dataKey="revenue" stroke="#16a34a" strokeWidth={2} dot={false} name="Revenue" />
+        <Line type="monotone" dataKey="profit" stroke="#6366f1" strokeWidth={2} dot={false} name="Profit" />
+        <Line type="monotone" dataKey="cost" stroke="#ef4444" strokeWidth={2} dot={false} name="Cost" />
+      </LineChart>
               </ResponsiveContainer>
-            </div>
-          )}
+  </div>
+)}
 
           {/* Stock Level Bar Chart */}
           <div style={styles.chartCard}>

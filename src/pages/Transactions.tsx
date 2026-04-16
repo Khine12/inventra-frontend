@@ -24,6 +24,8 @@ export default function Transactions() {
   const [productId, setProductId] = useState('')
   const [type, setType] = useState('sale')
   const [quantity, setQuantity] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [note, setNote] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
@@ -65,8 +67,22 @@ export default function Transactions() {
     return sum + (p ? p.price * t.quantity : 0)
   }, 0)
 
+  const totalProfit = transactions
+  .filter(t => t.type === 'sale')
+  .reduce((sum, t) => {
+    const p = products.find(p => p.id === t.product_id)
+    return sum + (p ? (p.price - (p.cost_price || 0)) * t.quantity : 0)
+  }, 0)
+
   const totalRestocks = transactions.filter(t => t.type === 'restock').length
   const totalSaleCount = transactions.filter(t => t.type === 'sale').length
+  
+  const filtered = transactions.filter(t => {
+  const date = new Date(t.created_at)
+  if (dateFrom && date < new Date(dateFrom)) return false
+  if (dateTo && date > new Date(dateTo + 'T23:59:59')) return false
+  return true
+  })
 
   return (
     <div style={styles.container}>
@@ -92,10 +108,14 @@ export default function Transactions() {
           <button style={styles.addBtn} onClick={() => setShowForm(!showForm)}>+ Record Transaction</button>
         </div>
 
-        <div style={styles.statsRow}>
+        <div style={{ ...styles.statsRow, gridTemplateColumns: 'repeat(4, 1fr)' }}>
           <div style={styles.statCard}>
             <p style={styles.statLabel}>Total Revenue</p>
             <p style={{ ...styles.statValue, color: '#16a34a' }}>${totalSales.toFixed(2)}</p>
+          </div>
+          <div style={styles.statCard}>
+            <p style={styles.statLabel}>Total Profit</p>
+            <p style={{ ...styles.statValue, color: '#16a34a' }}>${totalProfit.toFixed(2)}</p>
           </div>
           <div style={styles.statCard}>
             <p style={styles.statLabel}>Total Sales</p>
@@ -106,6 +126,31 @@ export default function Transactions() {
             <p style={styles.statValue}>{totalRestocks}</p>
           </div>
         </div>
+
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '1rem' }}>
+          <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>Filter by date:</span>
+          <input
+            type="date"
+            style={{ ...styles.input, width: 'auto' }}
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+        />
+        <span style={{ color: '#64748b', fontSize: '13px' }}>to</span>
+        <input
+          type="date"
+          style={{ ...styles.input, width: 'auto' }}
+          value={dateTo}
+          onChange={e => setDateTo(e.target.value)}
+        />
+        {(dateFrom || dateTo) && (
+          <button
+            style={{ ...styles.cancelBtn, padding: '8px 14px', fontSize: '13px' }}
+            onClick={() => { setDateFrom(''); setDateTo('') }}
+          >
+          Clear
+          </button>
+        )}
+      </div>
 
         {showForm && (
           <div style={styles.formCard}>
@@ -152,7 +197,7 @@ export default function Transactions() {
               </tr>
             </thead>
             <tbody>
-              {transactions.map(t => {
+              {filtered.map(t => {
                 const p = products.find(p => p.id === t.product_id)
                 const revenue = p && t.type === 'sale' ? p.price * t.quantity : null
                 return (
@@ -185,7 +230,7 @@ export default function Transactions() {
               })}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '14px' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '14px' }}>
                     No transactions yet.
                   </td>
                 </tr>
